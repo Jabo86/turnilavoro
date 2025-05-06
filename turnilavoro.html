@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Gestione Turni Lavoro</title>
+    <!-- Tailwind CSS via CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Poppins -->
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+    <!-- Font Awesome per icone -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            font-family: 'Poppins', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .grid-cal {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 2px;
+        }
+        .day-header {
+            height: 24px;
+            font-size: 10px;
+            line-height: 24px;
+            text-align: center;
+            background-color: #3b82f6 !important;
+            color: white !important;
+            font-weight: bold;
+            border-radius: 3px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            visibility: visible;
+            opacity: 1;
+        }
+        .day-cell {
+            min-height: 50px;
+            padding: 3px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            background-color: white;
+            border-radius: 5px;
+            box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+            font-size: 11px;
+        }
+        .day-number {
+            font-weight: bold;
+            font-size: 12px;
+        }
+        .shift-select {
+            width: 100%;
+            font-size: 10px;
+            padding: 2px;
+            border-radius: 3px;
+            border: 1px solid #e2e8f0;
+        }
+        /* Stili turni (mantenuti dall'originale) */
+        .shift-M { background-color: #e6fff4; border-left: 3px solid #10b981; }
+        .shift-P { background-color: #e0f2fe; border-left: 3px solid #3b82f6; }
+        .shift-N { background-color: #f3e8ff; border-left: 3px solid #8b5cf6; }
+        .shift-S { background-color: #ffedd5; border-left: 3px solid #f97316; }
+        .shift-R { background-color: #f3f4f6; border-left: 3px solid #6b7280; }
+        .shift-P1 { background-color: #cffafe; border-left: 3px solid #22d3ee; }
+        .shift-M1 { background-color: #ccfbf1; border-left: 3px solid #14b8a6; }
+        .shift-F, .shift-MAL, .shift-C, .shift-A21, .shift-A40 { background-color: #fee2e2; border-left: 3px solid #ef4444; }
+        .holiday {
+            background-color: #fecaca !important;
+        }
+        .summary-box {
+            padding: 8px;
+            font-size: 12px;
+            border-radius: 8px;
+            margin-bottom: 6px;
+        }
+        .summary-title {
+            font-size: 13px;
+            font-weight: bold;
+            margin-bottom: 4px;
+        }
+        .summary-value {
+            font-size: 13px;
+            font-weight: bold;
+        }
+        .nav-btn {
+            padding: 8px 12px;
+            font-size: 14px;
+        }
+        /* Nuovo contenitore per i riepiloghi affiancati */
+        .summary-container {
+            display: flex;
+            flex-direction: row;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+        .summary-box.cumulative, .summary-box.annual {
+            flex: 1; /* I due riepiloghi occupano lo stesso spazio */
+            min-width: 0; /* Impedisce che il contenuto trabocchi */
+        }
+        .summary-box.cumulative .grid, .summary-box.annual .grid {
+            display: flex;
+            flex-direction: column; /* Impila i valori verticalmente all'interno di ogni riepilogo */
+            gap: 2px;
+        }
+        .summary-box.cumulative .grid > div, .summary-box.annual .grid > div {
+            display: flex;
+            justify-content: space-between; /* Allinea etichetta e valore su una riga */
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-green-50 min-h-screen">
+    <div class="container mx-auto p-2 max-w-md">
+        <h1 class="text-xl font-bold text-center text-blue-800 mb-2">
+            <i class="fas fa-calendar-alt mr-1 text-orange-500"></i> Turni Lavoro
+        </h1>
+        
+        <div class="flex justify-between items-center mb-3">
+            <button onclick="prevMonth()" class="nav-btn bg-blue-600 text-white rounded-lg shadow">
+                <i class="fas fa-arrow-left mr-1"></i> Prec
+            </button>
+            <h2 id="monthYear" class="text-lg font-semibold text-gray-900"></h2>
+            <button onclick="nextMonth()" class="nav-btn bg-blue-600 text-white rounded-lg shadow">
+                Succ <i class="fas fa-arrow-right ml-1"></i>
+            </button>
+        </div>
+
+        <!-- Calendario 7x5 compatto -->
+        <div class="grid-cal mb-4" id="calendar">
+            <div class="day-header">LUN</div>
+            <div class="day-header">MAR</div>
+            <div class="day-header">MER</div>
+            <div class="day-header">GIO</div>
+            <div class="day-header">VEN</div>
+            <div class="day-header">SAB</div>
+            <div class="day-header">DOM</div>
+        </div>
+
+        <!-- Riepilogo Mensile Compatto -->
+        <div class="grid grid-cols-2 gap-2 mb-3">
+            <div class="summary-box bg-white shadow">
+                <div>Ore previste</div>
+                <div id="expectedHours" class="summary-value text-blue-600">0</div>
+            </div>
+            <div class="summary-box bg-white shadow">
+                <div>Ore lavorate</div>
+                <div id="workedHours" class="summary-value text-blue-600">0</div>
+            </div>
+            <div class="summary-box bg-white shadow">
+                <div>Ore effettive</div>
+                <div id="effectiveHours" class="summary-value text-blue-600">0</div>
+            </div>
+            <div class="summary-box bg-white shadow">
+                <div>Differenza</div>
+                <div id="hoursDifference" class="summary-value text-blue-600">0</div>
+            </div>
+        </div>
+
+        <!-- Contenitore per i riepiloghi affiancati -->
+        <div class="summary-container">
+            <!-- Riepilogo Cumulativo -->
+            <div class="summary-box cumulative bg-gradient-to-br from-blue-100 to-blue-50 border border-blue-200">
+                <h3 class="summary-title">Cumulativo Anno</h3>
+                <div class="grid">
+                    <div>
+                        <span>Giorni lavorativi</span>
+                        <span id="cumulativeWorkDays" class="summary-value text-blue-700">0</span>
+                    </div>
+                    <div>
+                        <span>Ore previste</span>
+                        <span id="cumulativeExpected" class="summary-value text-blue-700">0</span>
+                    </div>
+                    <div>
+                        <span>Ore lavorate</span>
+                        <span id="cumulativeWorked" class="summary-value text-blue-700">0</span>
+                    </div>
+                    <div>
+                        <span>Ore effettive</span>
+                        <span id="cumulativeEffective" class="summary-value text-blue-700">0</span>
+                    </div>
+                    <div>
+                        <span>Differenza</span>
+                        <span id="cumulativeDifference" class="summary-value text-blue-700">0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Riepilogo Annuale -->
+            <div class="summary-box annual bg-gradient-to-br from-green-100 to-green-50 border border-green-200">
+                <h3 class="summary-title">Riepilogo Annuale (2025)</h3>
+                <div class="grid">
+                    <div>
+                        <span>Giorni lavorativi</span>
+                        <span id="annualWorkDays" class="summary-value text-green-700">0</span>
+                    </div>
+                    <div>
+                        <span>Ore previste</span>
+                        <span id="annualExpected" class="summary-value text-green-700">0</span>
+                    </div>
+                    <div>
+                        <span>Ore lavorate</span>
+                        <span id="annualWorked" class="summary-value text-green-700">0</span>
+                    </div>
+                    <div>
+                        <span>Ore effettive</span>
+                        <span id="annualEffective" class="summary-value text-green-700">0</span>
+                    </div>
+                    <div>
+                        <span>Differenza</span>
+                        <span id="annualDifference" class="summary-value text-green-700">0</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Definizione dei turni con durate (identico all'originale)
+        const shifts = {
+            M: { name: 'M', hours: 7.15 },
+            P: { name: 'P', hours: 8.15 },
+            N: { name: 'N', hours: 2.15 },
+            S: { name: 'S', hours: 7 },
+            R: { name: 'R', hours: 0 },
+            P1: { name: 'P1', hours: 6.30 },
+            M1: { name: 'M1', hours: 7 },
+            F: { name: 'F', hours: 6 },
+            A21: { name: 'A21', hours: 6 },
+            A40: { name: 'A40', hours: 6 },
+            MAL: { name: 'MAL', hours: 6 },
+            C: { name: 'C', hours: 6 }
+        };
+
+        // Festivi 2025 (identico all'originale)
+        const holidays = [
+            { month: 0, day: 1 },   // 1 gennaio
+            { month: 0, day: 6 },   // 6 gennaio
+            { month: 3, day: 20 },  // 20 aprile (Pasqua)
+            { month: 3, day: 21 },  // 21 aprile (Pasquetta)
+            { month: 3, day: 25 },  // 25 aprile
+            { month: 4, day: 1 },   // 1 maggio
+            { month: 5, day: 2 },   // 2 giugno
+            { month: 7, day: 15 },  // 15 agosto
+            { month: 10, day: 1 },  // 1 novembre
+            { month: 11, day: 8 },  // 8 dicembre
+            { month: 11, day: 25 }, // 25 dicembre
+            { month: 11, day: 26 }  // 26 dicembre
+        ];
+
+        let currentDate = new Date(2025, 4, 6); // 6 maggio 2025
+        let currentMonth = currentDate.getMonth();
+        let currentYear = currentDate.getFullYear();
+
+        // Funzione per verificare se localStorage è disponibile
+        function storageAvailable(type) {
+            let storage;
+            try {
+                storage = window[type];
+                const x = '__storage_test__';
+                storage.setItem(x, x);
+                storage.removeItem(x);
+                console.log(`${type} è disponibile`);
+                return true;
+            } catch (e) {
+                console.error(`Errore con ${type}: ${e}`);
+                alert(`Errore: ${type} non è disponibile. I dati non verranno salvati.`);
+                return false;
+            }
+        }
+
+        // Verifica se localStorage è disponibile
+        const isStorageAvailable = storageAvailable('localStorage');
+
+        // Funzione per salvare un turno
+        function saveShift(shiftKey, shiftValue) {
+            if (isStorageAvailable) {
+                try {
+                    localStorage.setItem(shiftKey, shiftValue);
+                    console.log(`Salvataggio turno su localStorage per ${shiftKey}: ${shiftValue}`);
+                } catch (e) {
+                    console.error(`Errore nel salvataggio su localStorage per ${shiftKey}: ${e}`);
+                    alert('Errore nel salvataggio del turno.');
+                }
+            }
+        }
+
+        // Funzione per caricare un turno
+        function loadShift(shiftKey) {
+            if (isStorageAvailable) {
+                try {
+                    const shift = localStorage.getItem(shiftKey);
+                    console.log(`Caricamento turno da localStorage per ${shiftKey}: ${shift}`);
+                    return shift || 'R';
+                } catch (e) {
+                    console.error(`Errore nel caricamento da localStorage per ${shiftKey}: ${e}`);
+                    return 'R';
+                }
+            }
+            return 'R';
+        }
+
+        function calculateMonthHours(year, month) {
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            let nonWorkDays = 0;
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const date = new Date(year, month, day);
+                const isSunday = date.getDay() === 0;
+                const isHoliday = holidays.some(h => h.month === month && h.day === day);
+                if (isSunday || isHoliday) {
+                    nonWorkDays++;
+                    console.log(`Mese ${month + 1}, Giorno ${day}: ${isSunday ? 'Domenica' : ''}${isHoliday ? ' Festivo' : ''}`);
+                }
+            }
+
+            const workDays = daysInMonth - nonWorkDays;
+            console.log(`Mese ${month + 1}: Giorni totali = ${daysInMonth}, Non lavorativi = ${nonWorkDays}, Lavorativi = ${workDays}`);
+
+            const expected = workDays * 6;
+            let worked = 0;
+            let effective = 0;
+
+            for (let day = 1; day <= daysInMonth; day++) {
+                const shiftKey = `shift_${year}_${month}_${day}`;
+                const shift = loadShift(shiftKey);
+                const hours = shifts[shift].hours;
+                worked += hours;
+                if (!['F', 'MAL', 'C', 'A21', 'A40'].includes(shift)) {
+                    effective += hours;
+                }
+            }
+
+            return { expected, worked, effective, difference: expected - worked, workDays };
+        }
+
+        function calculateCumulativeHours() {
+            let totalExpected = 0;
+            let totalWorked = 0;
+            let totalEffective = 0;
+            let totalWorkDays = 0;
+
+            for (let month = 0; month <= currentMonth; month++) {
+                const hours = calculateMonthHours(currentYear, month);
+                totalExpected += hours.expected;
+                totalWorked += hours.worked;
+                totalEffective += hours.effective;
+                totalWorkDays += hours.workDays;
+            }
+
+            return {
+                expected: totalExpected,
+                worked: totalWorked,
+                effective: totalEffective,
+                difference: totalExpected - totalWorked,
+                workDays: totalWorkDays
+            };
+        }
+
+        function calculateAnnualHours() {
+            let totalExpected = 0;
+            let totalWorked = 0;
+            let totalEffective = 0;
+            let totalWorkDays = 0;
+
+            for (let month = 0; month < 12; month++) {
+                const hours = calculateMonthHours(currentYear, month);
+                totalExpected += hours.expected;
+                totalWorked += hours.worked;
+                totalEffective += hours.effective;
+                totalWorkDays += hours.workDays;
+            }
+
+            console.log(`Totale giorni lavorativi annuali: ${totalWorkDays}`);
+
+            return {
+                expected: totalExpected,
+                worked: totalWorked,
+                effective: totalEffective,
+                difference: totalExpected - totalWorked,
+                workDays: totalWorkDays
+            };
+        }
+
+        function renderCalendar() {
+            const calendar = document.getElementById('calendar');
+            const monthYear = document.getElementById('monthYear');
+
+            // Pulisci calendario (tranne le 7 intestazioni)
+            while (calendar.children.length > 7) {
+                calendar.removeChild(calendar.lastChild);
+            }
+
+            // Imposta mese e anno
+            const monthNames = [
+                'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno',
+                'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre'
+            ];
+            monthYear.textContent = `${monthNames[currentMonth]} ${currentYear}`;
+
+            // Calcola giorni del mese
+            const firstDay = new Date(currentYear, currentMonth, 1).getDay();
+            const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+            // Offset per iniziare da LUNEDÌ (1 = lunedì, 0 = domenica)
+            const offset = firstDay === 0 ? 6 : firstDay - 1;
+
+            // Aggiungi celle vuote inizція
+            for (let i = 0; i < offset; i++) {
+                const emptyCell = document.createElement('div');
+                calendar.appendChild(emptyCell);
+            }
+
+            // Aggiungi giorni del mese
+            for (let day = 1; day <= daysInMonth; day++) {
+                const cell = document.createElement('div');
+                cell.className = 'day-cell';
+
+                // Numero giorno
+                const dayNumber = document.createElement('span');
+                dayNumber.className = 'day-number';
+                dayNumber.textContent = day;
+                cell.appendChild(dayNumber);
+
+                // Menu a tendina per il turno
+                const select = document.createElement('select');
+                select.className = 'shift-select';
+                select.innerHTML = Object.keys(shifts).map(
+                    key => `<option value="${key}">${shifts[key].name}</option>`
+                ).join('');
+
+                // Carica turno salvato
+                const shiftKey = `shift_${currentYear}_${currentMonth}_${day}`;
+                const savedShift = loadShift(shiftKey);
+                select.value = savedShift;
+                cell.classList.add(`shift-${savedShift}`);
+
+                // Festivi/domeniche
+                const date = new Date(currentYear, currentMonth, day);
+                const isHoliday = holidays.some(h => h.month === currentMonth && h.day === day);
+                const isSunday = date.getDay() === 0;
+                if (isHoliday || isSunday) {
+                    cell.classList.add('holiday');
+                }
+
+                select.addEventListener('change', () => {
+                    const newShift = select.value;
+                    saveShift(shiftKey, newShift);
+                    // Aggiorna classe del turno
+                    cell.className = 'day-cell';
+                    cell.classList.add(`shift-${newShift}`);
+                    if (isHoliday || isSunday) cell.classList.add('holiday');
+                    updateWorkedHours();
+                });
+
+                cell.appendChild(select);
+                calendar.appendChild(cell);
+            }
+
+            // Riempi le celle rimanenti per arrivare a 35 (7x5)
+            while (calendar.children.length < 42) {
+                const emptyCell = document.createElement('div');
+                calendar.appendChild(emptyCell);
+            }
+
+            // Aggiorna riepilogo mese corrente
+            const monthHours = calculateMonthHours(currentYear, currentMonth);
+            document.getElementById('expectedHours').textContent = monthHours.expected.toFixed(2);
+            updateWorkedHours();
+
+            // Aggiorna riepilogo cumulativo
+            const cumulative = calculateCumulativeHours();
+            document.getElementById('cumulativeWorkDays').textContent = cumulative.workDays;
+            document.getElementById('cumulativeExpected').textContent = cumulative.expected.toFixed(2);
+            document.getElementById('cumulativeWorked').textContent = cumulative.worked.toFixed(2);
+            document.getElementById('cumulativeEffective').textContent = cumulative.effective.toFixed(2);
+            document.getElementById('cumulativeDifference').textContent = cumulative.difference.toFixed(2);
+
+            // Aggiorna riepilogo annuale
+            const annual = calculateAnnualHours();
+            document.getElementById('annualWorkDays').textContent = annual.workDays;
+            document.getElementById('annualExpected').textContent = annual.expected.toFixed(2);
+            document.getElementById('annualWorked').textContent = annual.worked.toFixed(2);
+            document.getElementById('annualEffective').textContent = annual.effective.toFixed(2);
+            document.getElementById('annualDifference').textContent = annual.difference.toFixed(2);
+        }
+
+        function updateWorkedHours() {
+            const monthHours = calculateMonthHours(currentYear, currentMonth);
+            document.getElementById('workedHours').textContent = monthHours.worked.toFixed(2);
+            document.getElementById('effectiveHours').textContent = monthHours.effective.toFixed(2);
+            document.getElementById('hoursDifference').textContent = monthHours.difference.toFixed(2);
+        }
+
+        function prevMonth() {
+            currentMonth--;
+            if (currentMonth < 0) {
+                currentMonth = 11;
+                currentYear--;
+            }
+            renderCalendar();
+        }
+
+        function nextMonth() {
+            currentMonth++;
+            if (currentMonth > 11) {
+                currentMonth = 0;
+                currentYear++;
+            }
+            renderCalendar();
+        }
+
+        // Inizializza
+        document.addEventListener('DOMContentLoaded', renderCalendar);
+    </script>
+</body>
+</html>
